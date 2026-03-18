@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NSE Stock Backtester</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%); color: #fff; font-family: Arial; min-height: 100vh; }
+        .navbar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .navbar h1 { font-size: 32px; margin-bottom: 5px; }
+        .navbar p { color: #ddd; font-size: 14px; }
+        .container { max-width: 1400px; margin: 20px auto; padding: 0 20px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 25px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .card h2 { margin-bottom: 20px; font-size: 24px; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+        .inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        .input-group { display: flex; flex-direction: column; }
+        .input-group label { font-size: 12px; color: #999; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+        input, select { padding: 10px; background: #2d2d44; border: 1px solid #444; color: #fff; border-radius: 5px; font-size: 14px; }
+        input:focus, select:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
+        button { padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; transition: all 0.3s ease; margin-top: 20px; width: 100%; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3); }
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .metric { background: linear-gradient(135deg, #2d2d44 0%, #3d3d54 100%); padding: 20px; border-left: 4px solid #667eea; border-radius: 5px; text-align: center; }
+        .metric-label { font-size: 11px; color: #999; text-transform: uppercase; margin-bottom: 10px; }
+        .metric-value { font-size: 26px; font-weight: bold; color: #667eea; }
+        .positive { color: #4caf50 !important; }
+        .negative { color: #f44336 !important; }
+        .chart-box { background: #2d2d44; padding: 20px; border-radius: 8px; margin-bottom: 20px; height: 450px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th { background: #667eea; color: white; padding: 12px; text-align: left; font-weight: 600; border: none; }
+        td { padding: 10px; border-bottom: 1px solid #333; }
+        tr:hover { background: #2d2d44; }
+        .buy { color: #4caf50; font-weight: bold; background: rgba(76, 175, 80, 0.1); padding: 4px 8px; border-radius: 3px; display: inline-block; }
+        .sell { color: #f44336; font-weight: bold; background: rgba(244, 67, 54, 0.1); padding: 4px 8px; border-radius: 3px; display: inline-block; }
+        .loading { display: none; text-align: center; padding: 40px; }
+        .spinner { border: 4px solid #333; border-top: 4px solid #667eea; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .results { display: none; }
+        .no-data { text-align: center; padding: 20px; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <h1>📊 NSE Stock Backtester</h1>
+        <p>Advanced Trading Strategy Analysis | Real-time NSE Data</p>
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <h2>⚙️ Configuration</h2>
+            <div class="inputs">
+                <div class="input-group">
+                    <label>📈 Stock Symbol</label>
+                    <select id="stock">
+                        <option>RELIANCE.NS</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>🎯 Strategy</label>
+                    <select id="strategy">
+                        <option value="rsi">RSI (Oversold/Overbought)</option>
+                        <option value="ma">Moving Average Crossover</option>
+                        <option value="bollinger">Bollinger Bands</option>
+                        <option value="vwap">VWAP Strategy</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>📅 Start Date</label>
+                    <input type="date" id="start" value="2023-01-01">
+                </div>
+                <div class="input-group">
+                    <label>📅 End Date</label>
+                    <input type="date" id="end">
+                </div>
+            </div>
+            <button onclick="runBacktest()">🚀 Run Backtest</button>
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Analyzing stock data... Please wait</p>
+            </div>
+        </div>
+        
+        <div class="results" id="results">
+            <div class="card">
+                <h2>📊 Backtest Results</h2>
+                <div class="metrics" id="metrics"></div>
+            </div>
+            
+            <div class="card">
+                <h2>📉 Price Chart with Indicators</h2>
+                <div class="chart-box">
+                    <canvas id="chart"></canvas>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>🎯 Trading Signals (Latest 50)</h2>
+                <table id="trades">
+                    <thead>
+                        <tr><th>Date</th><th>Signal</th><th>Price (₹)</th><th>Reason</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('end').value = today;
+        
+        fetch('/api/stocks')
+            .then(r => r.json())
+            .then(stocks => {
+                document.getElementById('stock').innerHTML = stocks.map(s => `<option>${s}</option>`).join('');
+            });
+        
+        let chart;
+        
+        async function runBacktest() {
+            const stock = document.getElementById('stock').value;
+            const strategy = document.getElementById('strategy').value;
+            const start = document.getElementById('start').value;
+            const end = document.getElementById('end').value;
+            
+            if (!stock || !start || !end) {
+                alert('Please fill all fields');
+                return;
+            }
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            
+            try {
+                const res = await fetch('/api/backtest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: stock, strategy, start_date: start, end_date: end })
+                });
+                
+                const data = await res.json();
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    document.getElementById('loading').style.display = 'none';
+                    return;
+                }
+                
+                const returnClass = data.metrics.total_return > 0 ? 'positive' : 'negative';
+                document.getElementById('metrics').innerHTML = `
+                    <div class="metric">
+                        <div class="metric-label">Total Return</div>
+                        <div class="metric-value ${returnClass}">${data.metrics.total_return}%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Trades</div>
+                        <div class="metric-value">${data.metrics.total_trades}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Start Price</div>
+                        <div class="metric-value">₹${data.metrics.start_price}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">End Price</div>
+                        <div class="metric-value">₹${data.metrics.end_price}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Highest</div>
+                        <div class="metric-value">₹${data.metrics.highest}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Lowest</div>
+                        <div class="metric-value">₹${data.metrics.lowest}</div>
+                    </div>
+                `;
+                
+                const ctx = document.getElementById('chart').getContext('2d');
+                if (chart) chart.destroy();
+                
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.dates,
+                        datasets: [
+                            { label: 'Close Price', data: data.close, borderColor: '#667eea', backgroundColor: 'rgba(102, 126, 234, 0.1)', fill: true, tension: 0.3, borderWidth: 2, pointRadius: 0 },
+                            { label: 'SMA 20', data: data.sma20, borderColor: '#ff9800', fill: false, borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+                            { label: 'SMA 50', data: data.sma50, borderColor: '#f44336', fill: false, borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+                            { label: 'SMA 200', data: data.sma200, borderColor: '#4caf50', fill: false, borderWidth: 1, pointRadius: 0, borderDash: [5, 5], tension: 0.3 }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#fff' } } },
+                        scales: { y: { ticks: { color: '#999' }, grid: { color: '#333' } }, x: { ticks: { color: '#999' }, grid: { display: false } } }
+                    }
+                });
+                
+                document.querySelector('#trades tbody').innerHTML = data.trades.length === 0 ? '<tr><td colspan="4" class="no-data">No signals</td></tr>' : 
+                    data.trades.map(t => `<tr><td>${t.date}</td><td><span class="${t.signal.toLowerCase()}">${t.signal}</span></td><td>₹${t.price.toFixed(2)}</td><td>${t.reason}</td></tr>`).join('');
+                
+                document.getElementById('results').style.display = 'block';
+                document.getElementById('loading').style.display = 'none';
+            } catch (e) {
+                alert('Error: ' + e.message);
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
